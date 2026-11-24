@@ -1,3 +1,4 @@
+./gradlew rebuildFoliaPatches
 ./gradlew rebuildPaperPatches
 ./gradlew rebuildPaperServerPatches
 ./gradlew rebuildServerPatches

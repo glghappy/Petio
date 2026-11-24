@@ -6,14 +6,18 @@ build
 
 /run
 
-/folia-server/build.gradle.kts
-/folia-server/src/minecraft
-/paper-server
-/folia-api/build.gradle.kts
+# Generated upstream sources
 /paper-api
+/paper-server
+/folia-api
+/folia-server
 /paper-api-generator
 /paper-checkstyle
 /.checkstyle
-/folia-checkstyle/build.gradle.kts
+
+# Generated downstream build scripts
+/petio-api/build.gradle.kts
+/petio-server/build.gradle.kts
+/petio-server/src/minecraft
 
 .idea/

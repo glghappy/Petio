@@ -10,11 +10,10 @@ plugins {
     id("org.gradle.toolchains.foojay-resolver-convention") version "1.0.0"
 }
 
-rootProject.name = "folia"
+rootProject.name = "petio"
 
-include("folia-api")
-include("folia-server")
-include("folia-checkstyle")
+include("petio-api")
+include("petio-server")
 
 gradle.lifecycle.beforeProject {
     val mcVersion = providers.gradleProperty("mcVersion").get().trim()

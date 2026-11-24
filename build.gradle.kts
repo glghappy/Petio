@@ -1,6 +1,5 @@
 import org.gradle.api.tasks.testing.logging.TestExceptionFormat
 import org.gradle.api.tasks.testing.logging.TestLogEvent
-import io.papermc.paperweight.tasks.RebuildGitPatches
 
 plugins {
     java // TODO java launcher tasks
@@ -9,40 +8,30 @@ plugins {
 
 paperweight {
     filterPatches = false
-    upstreams.paper {
-        ref = providers.gradleProperty("paperRef")
+    upstreams.register("folia") {
+        repo = github("PaperMC", "Folia")
+        ref = providers.gradleProperty("foliaRef")
 
         patchFile {
-            path = "paper-server/build.gradle.kts"
-            outputFile = file("folia-server/build.gradle.kts")
-            patchFile = file("folia-server/build.gradle.kts.patch")
+            path = "folia-server/build.gradle.kts"
+            outputFile = file("petio-server/build.gradle.kts")
+            patchFile = file("petio-server/build.gradle.kts.patch")
         }
         patchFile {
-            path = "paper-api/build.gradle.kts"
-            outputFile = file("folia-api/build.gradle.kts")
-            patchFile = file("folia-api/build.gradle.kts.patch")
+            path = "folia-api/build.gradle.kts"
+            outputFile = file("petio-api/build.gradle.kts")
+            patchFile = file("petio-api/build.gradle.kts.patch")
         }
-        patchFile {
-            path = "paper-checkstyle/build.gradle.kts"
-            outputFile = file("folia-checkstyle/build.gradle.kts")
-            patchFile = file("folia-checkstyle/build.gradle.kts.patch")
-        }
-        patchDir("paperApi") {
+        patchRepo("paperApi") {
             upstreamPath = "paper-api"
-            excludes = setOf("build.gradle.kts")
-            patchesDir = file("folia-api/paper-patches")
+            patchesDir = file("petio-api/paper-patches")
             outputDir = file("paper-api")
         }
-        patchDir("paperCheckstyle") {
-            upstreamPath = "paper-checkstyle"
-            excludes = setOf("build.gradle.kts")
-            patchesDir = file("folia-checkstyle/paper-patches")
-            outputDir = file("paper-checkstyle")
-        }
-        patchDir("paperCheckstyleConfig") {
-            upstreamPath = ".checkstyle"
-            patchesDir = file("folia-checkstyle/config-patches")
-            outputDir = file(".checkstyle")
+        patchDir("foliaApi") {
+            upstreamPath = "folia-api"
+            excludes = setOf("build.gradle.kts", "build.gradle.kts.patch", "paper-patches")
+            patchesDir = file("petio-api/folia-patches")
+            outputDir = file("folia-api")
         }
     }
 }
