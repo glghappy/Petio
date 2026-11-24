@@ -1,0 +1,78 @@
+From 28d6fa88f57078acdbe1929b4f25a99f9a93f845 Mon Sep 17 00:00:00 2001
+From: glghappy <glg_happy@qq.com>
+Date: Tue, 24 Nov 2026 18:58:33 +0800
+Subject: [PATCH 2/2] Preserve datapack dimension world settings
+
+World dimension data was probed before the world folder migration ran, so a custom dimension whose data had just been migrated was treated as new and had its saved worldgen settings overwritten with the overworld's copy. Check the dimension folder after the migration, and for genuinely new dimensions build the saved settings from the datapack LEVEL_STEM registry instead of the overworld's dimension map.
+---
+ .../papermc/paper/world/PaperWorldLoader.java | 32 ++++++++++++-------
+ 1 file changed, 21 insertions(+), 11 deletions(-)
+
+diff --git a/src/main/java/io/papermc/paper/world/PaperWorldLoader.java b/src/main/java/io/papermc/paper/world/PaperWorldLoader.java
+index fe63c0877b97a38e87f5b805c0e9cdcfde78b2e9..4d96278a7bb80b498734ac69ec39414cb0fe7cb1 100644
+--- a/src/main/java/io/papermc/paper/world/PaperWorldLoader.java
++++ b/src/main/java/io/papermc/paper/world/PaperWorldLoader.java
+@@ -17,6 +17,7 @@ import net.minecraft.server.level.ServerLevel;
+ import net.minecraft.util.datafix.DataFixers;
+ import net.minecraft.world.level.Level;
+ import net.minecraft.world.level.dimension.LevelStem;
++import net.minecraft.world.level.levelgen.WorldDimensions;
+ import net.minecraft.world.level.levelgen.WorldGenSettings;
+ import net.minecraft.world.level.storage.LevelDataAndDimensions;
+ import net.minecraft.world.level.storage.LevelResource;
+@@ -122,13 +123,12 @@ public record PaperWorldLoader(MinecraftServer server, String levelId) {
+     public void loadInitialWorlds() {
+         final Registry<LevelStem> levelStemRegistry = this.server.registryAccess().lookupOrThrow(Registries.LEVEL_STEM);
+         final LevelStem overworldStem = requireNonNull(levelStemRegistry.getValue(LevelStem.OVERWORLD), "Overworld stem missing");
+-        final boolean hasWorldData = this.hasDimensionData(overworldStem);
+-        this.loadInitialWorld(overworldStem, hasWorldData);
++        this.loadInitialWorld(overworldStem);
+         for (final LevelStem stem : levelStemRegistry) {
+             if (stem == overworldStem) {
+                 continue;
+             }
+-            this.loadInitialWorld(stem, this.hasDimensionData(stem));
++            this.loadInitialWorld(stem);
+         }
+ 
+         // ((DedicatedServer) this.server).forceDifficulty();
+@@ -138,7 +138,7 @@ public record PaperWorldLoader(MinecraftServer server, String levelId) {
+         }
+     }
+ 
+-    private void loadInitialWorld(final LevelStem stem, final boolean hasWorldData) {
++    private void loadInitialWorld(final LevelStem stem) {
+         final WorldLoadingInfoAndData loading = this.getWorldInfoAndData(stem);
+         if (loading == null) {
+             return;
+@@ -146,13 +146,23 @@ public record PaperWorldLoader(MinecraftServer server, String levelId) {
+ 
+         final boolean isOverworldLevel = loading.info().dimensionKey() == Level.OVERWORLD;
+ 
+-        final WorldGenSettings worldGenSettings = isOverworldLevel || !hasWorldData
+-            ? this.server.getWorldGenSettings()
+-            : loadWorldGenSettings(
+-            this.server.storageSource,
+-            this.server.worldLoaderContext.datapackWorldRegistries(),
+-            loading.info().dimensionKey()
+-        );
++        // Petio start - check for dimension data after the folder migration ran, and derive new dimensions from the datapack registry
++        final WorldGenSettings worldGenSettings;
++        if (isOverworldLevel) {
++            worldGenSettings = this.server.getWorldGenSettings();
++        } else if (this.hasDimensionData(stem)) {
++            worldGenSettings = loadWorldGenSettings(
++                this.server.storageSource,
++                this.server.worldLoaderContext.datapackWorldRegistries(),
++                loading.info().dimensionKey()
++            );
++        } else {
++            worldGenSettings = new WorldGenSettings(
++                this.server.getWorldGenSettings().options(),
++                new WorldDimensions(this.server.registryAccess().lookupOrThrow(Registries.LEVEL_STEM))
++            );
++        }
++        // Petio end
+         final var worldDataAndGenSettings = new LevelDataAndDimensions.WorldDataAndGenSettings(this.server.getWorldData(), worldGenSettings);
+ 
+         if (isOverworldLevel) {
