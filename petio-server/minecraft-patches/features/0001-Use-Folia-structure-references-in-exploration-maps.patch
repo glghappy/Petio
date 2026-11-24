@@ -1,0 +1,23 @@
+From 5336937a10e02669bf90aaf5b75d0586968d2ab5 Mon Sep 17 00:00:00 2001
+From: glghappy <glg_happy@qq.com>
+Date: Tue, 24 Nov 2026 18:58:33 +0800
+Subject: [PATCH 1/2] Use Folia structure references in exploration maps
+
+StructureStart#canBeReferenced() and #addReference() are replaced by throwing stubs in Folia's region threading patch, and callers have to use tryReference() instead. ExplorationMapFunction was left on the old API, so creating cartographer or treasure maps could throw UnsupportedOperationException while placing structures and loot.
+---
+ .../level/storage/loot/functions/ExplorationMapFunction.java    | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/net/minecraft/world/level/storage/loot/functions/ExplorationMapFunction.java b/net/minecraft/world/level/storage/loot/functions/ExplorationMapFunction.java
+index 8814a3ab71135b0f025608564d9c259bb05d6fe2..525cc85f85eaef54c600159694f2f63629dcea69 100644
+--- a/net/minecraft/world/level/storage/loot/functions/ExplorationMapFunction.java
++++ b/net/minecraft/world/level/storage/loot/functions/ExplorationMapFunction.java
+@@ -123,7 +123,7 @@ public class ExplorationMapFunction extends LootItemConditionalFunction {
+     private void claimStructureAt(final ServerLevel level, final BlockPos pos) {
+         StructureManager structureManager = level.structureManager();
+         StructureStart start = structureManager.getStructureAt(pos, this.destination);
+-        if (start.isValid() && start.canBeReferenced()) {
++        if (start.isValid() && start.tryReference()) { // Petio - region threading - canBeReferenced() is unsupported on Folia, tryReference() is the thread-safe replacement
+             structureManager.addReference(start);
+         }
+     }
