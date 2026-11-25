@@ -1,0 +1,94 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: glghappy <glg_happy@qq.com>
+Date: Tue, 24 Nov 2026 20:10:00 +0800
+Subject: [PATCH] Restore region-safe commands disabled by Folia
+
+Folia's region threading patch commented out a large part of the
+command tree and never restored it. Most of those commands only touch
+state owned by the region (or the player) that executes them, so they
+are safe to run again as long as they execute on that region thread.
+
+Restore /bossbar, /compute, /data, /dialog, /function, /item, /loot,
+/return, /tag, /teammsg and /trigger. Commands that need global
+coordination (/reload, /datapack, /schedule, /tick, /save-all, /clone,
+/spectate, /spreadplayers, /waypoint, /team, /scoreboard, /debug, /perf,
+/test) stay disabled until they get a region-aware implementation.
+---
+ .../net/minecraft/commands/Commands.java           | 22 ++++++++++----------
+ 1 file changed, 11 insertions(+), 11 deletions(-)
+
+diff --git a/net/minecraft/commands/Commands.java b/net/minecraft/commands/Commands.java
+index 29134b7..a7bffd2 100644
+--- a/net/minecraft/commands/Commands.java
++++ b/net/minecraft/commands/Commands.java
+@@ -200,16 +200,16 @@ public class Commands {
+         AdvancementCommands.register(this.dispatcher);
+         AttributeCommand.register(this.dispatcher, context);
+         ExecuteCommand.register(this.dispatcher, context);
+-        //BossBarCommands.register(this.dispatcher, context); // Folia - region threading - TODO
++        BossBarCommands.register(this.dispatcher, context); // Petio - region threading - restored, server-global state only
+         ClearInventoryCommands.register(this.dispatcher, context);
+         //CloneCommands.register(this.dispatcher, context); // Folia - region threading - TODO
+-        //ComputeCommand.register(this.dispatcher, context); // Folia - region threading - TODO
++        ComputeCommand.register(this.dispatcher, context); // Petio - region threading - restored, pure evaluation
+         DamageCommand.register(this.dispatcher, context);
+-        //DataCommands.register(this.dispatcher, context); // Folia - region threading - TODO
++        DataCommands.register(this.dispatcher, context); // Petio - region threading - restored, runs on the caller's region thread
+         //DataPackCommand.register(this.dispatcher, context); // Folia - region threading - TODO
+         //DebugCommand.register(this.dispatcher); // Folia - region threading - TODO
+         DefaultGameModeCommands.register(this.dispatcher);
+-        //DialogCommand.register(this.dispatcher, context); // Folia - region threading - TODO
++        DialogCommand.register(this.dispatcher, context); // Petio - region threading - restored, only targets the executing player
+         DifficultyCommand.register(this.dispatcher);
+         EffectCommands.register(this.dispatcher, context);
+         EmoteCommands.register(this.dispatcher);
+@@ -218,17 +218,17 @@ public class Commands {
+         FillCommand.register(this.dispatcher, context);
+         FillBiomeCommand.register(this.dispatcher, context);
+         ForceLoadCommand.register(this.dispatcher);
+-        //FunctionCommand.register(this.dispatcher); // Folia - region threading - TODO
++        FunctionCommand.register(this.dispatcher); // Petio - region threading - restored, functions run in the caller's context
+         GameModeCommand.register(this.dispatcher);
+         GameRuleCommand.register(this.dispatcher, context);
+         GiveCommand.register(this.dispatcher, context);
+         HelpCommand.register(this.dispatcher);
+-        //ItemCommands.register(this.dispatcher, context); // Folia - region threading - TODO later
++        ItemCommands.register(this.dispatcher, context); // Petio - region threading - restored, runs on the caller's region thread
+         KickCommand.register(this.dispatcher);
+         KillCommand.register(this.dispatcher);
+         ListPlayersCommand.register(this.dispatcher);
+         LocateCommand.register(this.dispatcher, context);
+-        //LootCommand.register(this.dispatcher, context); // Folia - region threading - TODO later
++        LootCommand.register(this.dispatcher, context); // Petio - region threading - restored, loot is generated in the executing region
+         MsgCommand.register(this.dispatcher);
+         SwingCommand.register(this.dispatcher);
+         ParticleCommand.register(this.dispatcher, context);
+@@ -239,7 +239,7 @@ public class Commands {
+         //ReloadCommand.register(this.dispatcher); // Folia - region threading
+         RecipeCommand.register(this.dispatcher);
+         FetchProfileCommand.register(this.dispatcher);
+-        //ReturnCommand.register(this.dispatcher); // Folia - region threading
++        ReturnCommand.register(this.dispatcher); // Petio - region threading - restored, control flow only
+         RideCommand.register(this.dispatcher);
+         RotateCommand.register(this.dispatcher);
+         SayCommand.register(this.dispatcher);
+@@ -255,16 +255,16 @@ public class Commands {
+         StopSoundCommand.register(this.dispatcher);
+         StopwatchCommand.register(this.dispatcher);
+         SummonCommand.register(this.dispatcher, context);
+-        //TagCommand.register(this.dispatcher); // Folia - region threading - TODO later
++        TagCommand.register(this.dispatcher); // Petio - region threading - restored, entity tags are owned by the executing region
+         //TeamCommand.register(this.dispatcher, context); // Folia - region threading - TODO later
+-        //TeamMsgCommand.register(this.dispatcher); // Folia - region threading - TODO later
++        TeamMsgCommand.register(this.dispatcher); // Petio - region threading - restored, chat only
+         TeleportCommand.register(this.dispatcher);
+         TellRawCommand.register(this.dispatcher, context);
+         //TestCommand.register(this.dispatcher, context); // Folia - region threading
+         //TickCommand.register(this.dispatcher); // Folia - region threading - TODO later
+         TimeCommand.register(this.dispatcher, context);
+         TitleCommand.register(this.dispatcher, context);
+-        //TriggerCommand.register(this.dispatcher); // Folia - region threading - TODO later
++        TriggerCommand.register(this.dispatcher); // Petio - region threading - restored, only touches the executing player's scores
+         //WaypointCommand.register(this.dispatcher, context); // Folia - region threading - TODO later
+         WeatherCommand.register(this.dispatcher);
+         WorldBorderCommand.register(this.dispatcher);
