@@ -56,7 +56,7 @@
  dependencies {
 -    implementation(project(":folia-api"))
 +    implementation(project(":petio-api"))
-     implementation(platform("ca.spottedleaf.leafpile:bom:1.3.2"))
+     implementation(platform("ca.spottedleaf.leafpile:bom:1.3.3"))
      implementation("ca.spottedleaf.leafpile:common")
      implementation("ca.spottedleaf.leafpile:concurrentutil")
 @@ -193,21 +_,21 @@
