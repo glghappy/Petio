@@ -5,6 +5,11 @@ on:
     branches:
       - ver/26.3.x
   workflow_dispatch:
+    inputs:
+      force-release:
+        description: "true = always release, false = never release, empty = follow gradle.properties release flag"
+        required: false
+        default: ""
 
 permissions:
   contents: write
@@ -19,6 +24,8 @@ jobs:
     timeout-minutes: 150
     env:
       BUILD_NUMBER: ${{ github.run_number }}
+      PROJECT: petio
+      PROJECT_NAME: Petio
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -28,7 +35,7 @@ jobs:
       - name: JDK 25
         uses: actions/setup-java@v4
         with:
-          distribution: temurin
+          distribution: zulu
           java-version: "25"
 
       - name: Setup Gradle
@@ -39,11 +46,6 @@ jobs:
           chmod +x gradlew
           git config --global user.email "ci@glghappy.dev"
           git config --global user.name "Glghappy CI"
-          MC=$(grep '^mcVersion=' gradle.properties | cut -d= -f2 | tr -d '\r')
-          SHA=$(git rev-parse --short=7 HEAD)
-          echo "MC=$MC" >> "$GITHUB_ENV"
-          echo "TAG=${MC}-${SHA}" >> "$GITHUB_ENV"
-          echo "JAR=petio-${MC}-paperclip.jar" >> "$GITHUB_ENV"
 
       - name: Apply patches
         run: ./gradlew applyAllPatches --stacktrace
@@ -51,31 +53,82 @@ jobs:
       - name: Build paperclip jar
         run: ./gradlew :petio-server:createPaperclipJar --stacktrace
 
-      - name: Collect jar
+      - name: Set environment
         run: |
-          jar=$(find petio-server/build/libs -maxdepth 1 -name '*paperclip-*.jar' ! -name '*.jar--*' | head -n1)
-          test -n "$jar"
-          cp "$jar" "$JAR"
-          ls -lh "$JAR"
+          prop() {
+            grep "^[[:space:]]*${1}" gradle.properties | cut -d'=' -f2 | sed 's/^[[:space:]]*//; s/\r//'
+          }
+
+          MC=$(prop mcVersion)
+          SHA=$(git log --pretty='%h' -1)
+          RELEASE=$(prop release)
+          JAR="$PROJECT-$MC-paperclip.jar"
+
+          PRE=false
+          PUBLISH=false
+          if [ "$RELEASE" = "pre" ]; then
+            PRE=true
+            PUBLISH=true
+          elif [ "$RELEASE" = "true" ]; then
+            PUBLISH=true
+          fi
+
+          case "${{ inputs.force-release }}" in
+            true) PUBLISH=true ;;
+            false) PUBLISH=false ;;
+          esac
+
+          # 重名 tag 追加 -1、-2，和 Lophine 一致
+          git fetch --tags --force
+          TAG="$MC-$SHA"
+          COUNT=""
+          if [ -n "$(git tag -l "$TAG")" ]; then
+            n=1
+            while [ -n "$(git tag -l "$TAG-$n")" ]; do n=$((n + 1)); done
+            TAG="$TAG-$n"
+            COUNT=" - $n"
+          fi
+
+          # 统一产物命名
+          actual=$(find petio-server/build/libs -maxdepth 1 -name '*paperclip-*.jar' ! -name '*.jar--*' | head -n1)
+          test -n "$actual"
+          mv "$actual" "petio-server/build/libs/$JAR"
+
+          {
+            echo "MC=$MC"
+            echo "SHA=$SHA"
+            echo "TAG=$TAG"
+            echo "COUNT=$COUNT"
+            echo "JAR=$JAR"
+            echo "JAR_DIR=petio-server/build/libs/$JAR"
+            echo "PRE=$PRE"
+            echo "PUBLISH=$PUBLISH"
+            echo "COMMIT_MSG=$(git log --pretty='> [%h] %s' -1)"
+          } >> "$GITHUB_ENV"
+
+          echo "Version: $TAG (release=$RELEASE, prerelease=$PRE, publish=$PUBLISH)"
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
           name: ${{ env.TAG }}
-          path: ${{ env.JAR }}
+          path: ${{ env.JAR_DIR }}
 
-      - name: Publish release
-        uses: softprops/action-gh-release@v2
+      - name: Create release
+        if: env.PUBLISH == 'true'
+        uses: ncipollo/release-action@v1
         with:
-          tag_name: ${{ env.TAG }}
-          name: Petio ${{ env.MC }} - ${{ github.sha }}
-          prerelease: true
-          make_latest: false
+          tag: ${{ env.TAG }}
+          name: ${{ env.PROJECT_NAME }} ${{ env.MC }} - ${{ env.SHA }}${{ env.COUNT }}
           body: |
-            Automatic build of `${{ github.repository }}`.
-
-            - Branch: `${{ github.ref_name }}`
-            - Commit: `${{ github.sha }}`
-            - Minecraft: `${{ env.MC }}`
-            - Run: #${{ github.run_number }}
-          files: ${{ env.JAR }}
+            📦Version: `${{ env.MC }}` | Commit ${{ env.SHA }} [![download](https://img.shields.io/github/downloads/${{ github.repository }}/${{ env.TAG }}/total?color=red&style=flat-square)](https://github.com/${{ github.repository }}/releases/download/${{ env.TAG }}/${{ env.JAR }})
+            This release is automatically compiled by GitHub Actions
+            ### Branch Info
+            > ${{ github.ref_name }}
+            ### Commit Message
+            ${{ env.COMMIT_MSG }}
+          artifacts: ${{ env.JAR_DIR }}
+          generateReleaseNotes: true
+          prerelease: ${{ env.PRE }}
+          makeLatest: true
+          token: ${{ secrets.GITHUB_TOKEN }}
