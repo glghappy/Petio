@@ -1,33 +1,81 @@
-name: Patch and Build
+name: Build
 
 on:
   push:
-    branches-ignore:
+    branches:
       - ver/26.3.x
-  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: build-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
   build:
-    # Only run on PRs if the source branch is on someone else's repo
-    if: ${{ github.event_name != 'pull_request' || github.repository != github.event.pull_request.head.repo.full_name }}
     runs-on: ubuntu-latest
+    timeout-minutes: 150
+    env:
+      BUILD_NUMBER: ${{ github.run_number }}
     steps:
-      - name: Checkout Git Repository
-        uses: actions/checkout@v7
-      - name: JDK 25
-        uses: actions/setup-java@v5
+      - name: Checkout
+        uses: actions/checkout@v4
         with:
-          java-version: 25
-          distribution: 'zulu'
+          fetch-depth: 0
+
+      - name: JDK 25
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "25"
 
       - name: Setup Gradle
-        uses: gradle/actions/setup-gradle@v6
+        uses: gradle/actions/setup-gradle@v4
 
-      - name: Apply Patches
+      - name: Prepare
         run: |
-          git config --global user.email "no-reply@github.com"
-          git config --global user.name "GitHub Actions"
-          ./gradlew applyAllPatches --stacktrace
+          chmod +x gradlew
+          git config --global user.email "ci@glghappy.dev"
+          git config --global user.name "Glghappy CI"
+          MC=$(grep '^mcVersion=' gradle.properties | cut -d= -f2 | tr -d '\r')
+          SHA=$(git rev-parse --short=7 HEAD)
+          echo "MC=$MC" >> "$GITHUB_ENV"
+          echo "TAG=${MC}-${SHA}" >> "$GITHUB_ENV"
+          echo "JAR=petio-${MC}-paperclip.jar" >> "$GITHUB_ENV"
 
-      - name: Build
-        run: ./gradlew build --stacktrace
+      - name: Apply patches
+        run: ./gradlew applyAllPatches --stacktrace
+
+      - name: Build paperclip jar
+        run: ./gradlew :petio-server:createPaperclipJar --stacktrace
+
+      - name: Collect jar
+        run: |
+          jar=$(find petio-server/build/libs -maxdepth 1 -name '*paperclip-*.jar' ! -name '*.jar--*' | head -n1)
+          test -n "$jar"
+          cp "$jar" "$JAR"
+          ls -lh "$JAR"
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ env.TAG }}
+          path: ${{ env.JAR }}
+
+      - name: Publish release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ env.TAG }}
+          name: Petio ${{ env.MC }} - ${{ github.sha }}
+          prerelease: true
+          make_latest: false
+          body: |
+            Automatic build of `${{ github.repository }}`.
+
+            - Branch: `${{ github.ref_name }}`
+            - Commit: `${{ github.sha }}`
+            - Minecraft: `${{ env.MC }}`
+            - Run: #${{ github.run_number }}
+          files: ${{ env.JAR }}
